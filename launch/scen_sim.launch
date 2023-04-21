@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<launch>
+  <param name="use_sim_time" value="true"/>
+  <!-- Start position of waffle robot in scene. -->
+  <!-- <arg name="x" default="-17.8"/>
+  <arg name="y" default="3.6"/>
+  <arg name="z" default="5.0"/> -->
+  <arg name="x" default="0.0"/>
+  <arg name="y" default="0.0"/>
+  <arg name="z" default="5.0"/>
+  <arg name="roll" default="0"/>
+  <arg name="pitch" default="0"/>
+  <arg name="yaw" default="0"/>
+  <arg name="world_name" default="uneven2"/>
+  <arg name="robot_namespace" default="/"/>
+	<arg name="joystick" default="false" />
+  <!-- Start gazebo server with turtlebot3_house scene. -->
+  <include file="$(find gazebo_ros)/launch/empty_world.launch">
+    <arg name="world_name" value="$(find sim_environment_arranger)/world/$(arg world_name)/$(arg world_name).world"/>
+    <arg name="paused"        value="false"/>
+    <arg name="use_sim_time"  value="true"/>
+    <arg name="gui"           value="true"/>
+    <arg name="headless"      value="false"/>
+    <arg name="debug"         value="false"/>
+    <arg name="output" value="log"/>
+  </include>
+  
+  <node pkg="tf" type="static_transform_publisher" name="map2odom"  args="0 0 0 0 0 0 /map /odom 100" />
+  <!-- <include file="$(find pose_publisher)/launch/loam_launcher.launch"/> -->
+
+  <!-- Load robot_description param for tf, rviz and gazebo spawn. -->
+  <param name="robot_description" command="$(find xacro)/xacro '$(find scout_simulator)/urdf/scout/scout_v2.xacro'
+    robot_namespace:=$(arg robot_namespace)" />
+
+  <!-- Spawn turtlebot into gazebo based on robot_description. -->
+  <node name="spawn_urdf"
+        pkg="gazebo_ros"
+        type="spawn_model"
+        args="-param robot_description -urdf
+              -x $(arg x) -y $(arg y) -z $(arg z)
+              -R $(arg roll) -P $(arg pitch) -Y $(arg yaw)
+              -model my_ugv"/>
+
+  <!-- Publish scout tf's. -->
+  <node pkg="robot_state_publisher" type="robot_state_publisher" name="ugv_state_publisher" />
+  <node name="joint_state_publisher" pkg="joint_state_publisher" type="joint_state_publisher" >
+    <param name="publish_frequency" value="50"/>
+  </node>
+  <!-- Publish tf 'base_footprint' as pose.-->
+  <node pkg="elevation_mapping_demos" type="tf_to_pose_publisher.py" name="ugv_pose_publisher">
+    <param name="from_frame" type="string" value="odom" />
+    <param name="to_frame"   type="string" value="base_link" />
+  </node>
+  
+  <!-- <node pkg="pose_publisher" type="pose_publisher" name="pose_publisher">
+    <param name="pose_topic" type="string" value="/gazebo/model_states" />
+    <param name="target_model"   type="string" value="my_ugv" />
+    <param name="reference_frame"   type="string" value="odom" />
+    <param name="base_frame"   type="string" value="base_link" />
+  </node> -->
+
+  <!-- <include file="$(find point_cloud_mapping)/launch/point_cloud_mapping.launch" /> -->
+  <!-- <include file="$(find trajectory_tool)/launch/visualization_tools.launch" /> -->
+
+  <!-- Launch elevation mapping node. -->
+  <node pkg="elevation_mapping" type="elevation_mapping" name="elevation_mapping">
+    <rosparam command="load" file="$(find elevation_mapping_demos)/config/robots/husky.yaml" />
+    <rosparam command="load" file="$(find elevation_mapping)/config/sensor_processors/perfect.yaml" />
+    <rosparam command="load" file="$(find elevation_mapping_demos)/config/postprocessing/postprocessor_pipeline.yaml" />
+  </node>
+
+  <!-- Launch RViz with the demo configuration. -->
+  <node name="rviz" pkg="rviz" type="rviz" args="-d $(find sim_environment_arranger)/config/rviz/seap_gazebo_nav.rviz"/>
+  <node name="global_displayer" pkg="rviz" type="rviz" args="-d $(find sim_environment_arranger)/config/rviz/uneven2_global_display.rviz"/>
+
+</launch>
